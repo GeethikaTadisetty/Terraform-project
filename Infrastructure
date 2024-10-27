@@ -1,0 +1,98 @@
+provider "aws" {
+  region = "us-east-1"
+}
+
+resource "aws_vpc" "vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "sub1" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.0.0/24"
+  availability_zone = "us-east-1a"
+  map_public_ip_on_launch = true
+}
+
+resource "aws_subnet" "sub2" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.1.0/24"
+  availability_zone = "us-east-1b"
+  map_public_ip_on_launch = true
+}
+
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "rta1" {
+  subnet_id = aws_subnet.sub1.id
+  route_table_id = aws_route_table.rt.id
+}
+
+resource "aws_route_table_association" "rta2" {
+  subnet_id = aws_subnet.sub2.id
+  route_table_id = aws_route_table.rt.id
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+locals {
+  ingress_rules = [{
+    description = "This is for port 80"
+    port = 80
+  },
+  {
+    description = "This is for port 22"
+    port = 22
+  }]
+}
+resource "aws_security_group" "sg" {
+  name = "web"
+  vpc_id = aws_vpc.vpc.id
+
+  dynamic "ingress" {
+    for_each = local.ingress_rules
+
+    content {
+      description = ingress.value.description
+      from_port = ingress.value.port
+      to_port = ingress.value.port
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+  egress {
+    description = "outgoing traffic"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "server1" {
+  ami = "ami-0261755bbcb8c4a84"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.sg.id]
+  subnet_id = aws_subnet.sub1.id
+  user_data = base64encode(file("userdata.sh"))
+}
+
+resource "aws_instance" "server2" {
+  ami = "ami-0261755bbcb8c4a84"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.sg.id]
+  subnet_id = aws_subnet.sub2.id
+  user_data = base64encode(file("userdata1.sh"))
+}
+
+
+
+
