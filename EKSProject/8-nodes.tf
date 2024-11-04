@@ -51,6 +51,9 @@ resource "aws_eks_node_group" "general"{
           min_size = 0
       }
 
+    update_config {
+          max_unavailable = 1
+
       labels ={
           role = "general"
       }
