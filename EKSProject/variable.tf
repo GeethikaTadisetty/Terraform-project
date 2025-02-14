@@ -1,12 +1,13 @@
-variable "ami_id" {
-   type = "string"
-   description = "ec2_ami_id"
+variable "aws_region" {
+  description = "AWS region"
+  default     = "us-east-1"
 }
-   
+
 variable "instance_type" {
-   type = "string"
-   description = "ec2_instance_type"
+  description = "Type of EC2 instance"
+  default     = "t2.micro"
 }
 
-
-   
+variable "key_name" {
+  description = "SSH key pair name"
+}
