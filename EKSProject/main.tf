@@ -1,32 +1,31 @@
-# Create a Security Group
-resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-security-group"
-  description = "Allow SSH and HTTP traffic"
-
-  # Allow SSH (Port 22)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow HTTP (Port 80)
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow all outbound tr
- egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+#creating VPC
+resource "aws_vpc" "myvpc" {
+  name = var.vpc_name
+  cidr_block = var.cidr_block
 }
+
+resource "aws_subnet" "mysubnet" {
+  vpc_id = aws_vpc.myvpc.id
+  availability_zone = data.aws_availability_zones.az.names
+  cidr_block = ["10.0.0.0/24"]
+  map_public_ip_on_launch = true
+}
+
+resource "aws_internet_gateway" igw" {
+ vpc_id = aws_vpc.myvpc.id
+}
+
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.myvpc.id
+  route{
+    cidr_block = ["0.0.0.0/0"]
+    gateway_id = aws_gateway.igw.id
+   }
+}
+
+resource "aws_route_table_association"
+
+
 
 # Create an EC2 Instance
 resource "aws_instance" "my_ec2" {
