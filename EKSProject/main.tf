@@ -1,3 +1,5 @@
+  ######## VPC CREATION #########
+
 # Define AWS Availability Zones
 data "aws_availability_zones" "az" {}
 
