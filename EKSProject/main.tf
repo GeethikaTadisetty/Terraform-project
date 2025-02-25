@@ -74,14 +74,3 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-# Creating an EC2 Instance
-resource "aws_instance" "my_ec2" {
-  ami                    = "ami-04681163a08179f28"  
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.mysubnet.id  # Added to associate EC2 with a subnet
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-
-  tags = {
-    Name = "My-Terraform-EC2"
-  }
-}
