@@ -3,8 +3,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "instance_type" {
-  description = "Type of EC2 instance"
-  default     = "t2.micro"
+variable "vpc_name" {
+  default = "MyVPC"
 }
+
+variable "cidr_block" {
+  default = "10.0.0.0/16"
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
+
 
