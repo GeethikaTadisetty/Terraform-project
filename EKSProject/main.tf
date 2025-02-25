@@ -94,6 +94,13 @@ resource "aws_iam_role" "eks_cluster_role" {
   })
 }
 
+# Attach IAM role to master node policy
+
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.eks_cluster_role.name
+}
+
 
 #Creating EKS cluster
 
@@ -125,7 +132,9 @@ resource "aws_iam_role" "eks_node_role" {
       Action = "sts:AssumeRole"
     }]
   })
-}
+
+
+# Attach IAM role to worker node policy
 
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
