@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1" # Change as per requirement
-}
-
 # Define AWS Availability Zones
 data "aws_availability_zones" "az" {}
 
