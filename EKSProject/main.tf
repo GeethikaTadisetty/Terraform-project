@@ -1,9 +1,9 @@
-# Define AWS Availability Zones
-data "aws_availability_zones" "az" {}
 
-# ========= VPC CREATION ========= #
 
-# Creating VPC
+# ====== DATA SOURCE ====== #
+data "aws_availability_zones" "available" {}
+
+# ====== VPC CREATION ====== #
 resource "aws_vpc" "myvpc" {
   cidr_block = var.cidr_block
 
@@ -12,11 +12,11 @@ resource "aws_vpc" "myvpc" {
   }
 }
 
-# Creating Public Subnet
+# ====== PUBLIC SUBNET ====== #
 resource "aws_subnet" "public_subnet" {
   vpc_id                  = aws_vpc.myvpc.id
-  availability_zone       = data.aws_availability_zones.az.names[0]
   cidr_block              = "10.0.1.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
@@ -24,18 +24,28 @@ resource "aws_subnet" "public_subnet" {
   }
 }
 
-# Creating Private Subnet
-resource "aws_subnet" "private_subnet" {
+# ====== PRIVATE SUBNETS (Multiple for HA) ====== #
+resource "aws_subnet" "private_subnet_1" {
   vpc_id            = aws_vpc.myvpc.id
-  availability_zone = data.aws_availability_zones.az.names[1]
   cidr_block        = "10.0.2.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = {
-    Name = "Private-Subnet"
+    Name = "Private-Subnet-1"
   }
 }
 
-# Creating Internet Gateway
+resource "aws_subnet" "private_subnet_2" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = "10.0.3.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "Private-Subnet-2"
+  }
+}
+
+# ====== INTERNET GATEWAY ====== #
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.myvpc.id
 
@@ -44,7 +54,7 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# Creating Public Route Table
+# ====== PUBLIC ROUTE TABLE ====== #
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.myvpc.id
 
@@ -58,13 +68,12 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
-# Associate Public Subnet with Route Table
 resource "aws_route_table_association" "public_rt_association" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
 
-# Creating NAT Gateway for Private Subnet
+# ====== NAT GATEWAY FOR PRIVATE SUBNETS ====== #
 resource "aws_eip" "nat_eip" {
   domain = "vpc"
 }
@@ -78,7 +87,7 @@ resource "aws_nat_gateway" "nat" {
   }
 }
 
-# Creating Private Route Table
+# ====== PRIVATE ROUTE TABLE ====== #
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.myvpc.id
 
@@ -92,15 +101,17 @@ resource "aws_route_table" "private_rt" {
   }
 }
 
-# Associate Private Subnet with Route Table
-resource "aws_route_table_association" "private_rt_association" {
-  subnet_id      = aws_subnet.private_subnet.id
+resource "aws_route_table_association" "private_rt_association_1" {
+  subnet_id      = aws_subnet.private_subnet_1.id
   route_table_id = aws_route_table.private_rt.id
 }
 
-# ========= SECURITY GROUPS ========= #
+resource "aws_route_table_association" "private_rt_association_2" {
+  subnet_id      = aws_subnet.private_subnet_2.id
+  route_table_id = aws_route_table.private_rt.id
+}
 
-# Security Group for EKS Cluster
+# ====== SECURITY GROUPS ====== #
 resource "aws_security_group" "eks_sg" {
   vpc_id = aws_vpc.myvpc.id
 
@@ -123,32 +134,7 @@ resource "aws_security_group" "eks_sg" {
   }
 }
 
-# Security Group for Worker Nodes
-resource "aws_security_group" "worker_sg" {
-  vpc_id = aws_vpc.myvpc.id
-
-  ingress {
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    security_groups = [aws_security_group.eks_sg.id]  # Allow EKS communication
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "Worker-Security-Group"
-  }
-}
-
-# ========= EKS CREATION ========= #
-
-# IAM Role for EKS Cluster
+# ====== IAM ROLES FOR EKS ====== #
 resource "aws_iam_role" "eks_cluster_role" {
   name = "eks-cluster-role"
 
@@ -162,19 +148,18 @@ resource "aws_iam_role" "eks_cluster_role" {
   })
 }
 
-# Attach IAM Policies to Cluster Role
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.eks_cluster_role.name
 }
 
-# Create EKS Cluster
+# ====== CREATE EKS CLUSTER ====== #
 resource "aws_eks_cluster" "my_eks_cluster" {
   name     = "my-eks-cluster"
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids = [aws_subnet.public_subnet.id, aws_subnet.private_subnet.id]
+    subnet_ids = [aws_subnet.private_subnet_1.id, aws_subnet.private_subnet_2.id]
     security_group_ids = [aws_security_group.eks_sg.id]
   }
 
@@ -183,7 +168,7 @@ resource "aws_eks_cluster" "my_eks_cluster" {
   }
 }
 
-# IAM Role for Worker Nodes
+# ====== IAM ROLES FOR WORKER NODES ====== #
 resource "aws_iam_role" "eks_node_role" {
   name = "eks-node-role"
 
@@ -197,24 +182,23 @@ resource "aws_iam_role" "eks_node_role" {
   })
 }
 
-# Attach Policies to Worker Role
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.eks_node_role.name
 }
 
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+resource "aws_iam_role_policy_attachment" "eks_service_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
   role       = aws_iam_role.eks_node_role.name
 }
 
-# Create EKS Node Group (Worker Nodes)
+# ====== CREATE NODE GROUP ====== #
 resource "aws_eks_node_group" "eks_nodes" {
   cluster_name    = aws_eks_cluster.my_eks_cluster.name
   node_group_name = "my-node-group"
   node_role_arn   = aws_iam_role.eks_node_role.arn
 
-  subnet_ids = [aws_subnet.private_subnet.id]
+  subnet_ids = [aws_subnet.private_subnet_1.id, aws_subnet.private_subnet_2.id]
   instance_types = ["t3.medium"]
 
   scaling_config {
